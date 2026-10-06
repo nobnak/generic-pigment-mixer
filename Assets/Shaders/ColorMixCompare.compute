@@ -1,0 +1,101 @@
+#pragma kernel CSMain
+
+#include "PolyMixer.hlsl"
+
+RWTexture2D<float4> Result;
+
+// Pair count: up to 8 pairs
+cbuffer Params {
+    int _Width;
+    int _Height;
+    int _PairCount;
+    float4 _Color1[8];
+    float4 _Color2[8];
+    // Reference colors for KM (uploaded from CPU)
+};
+
+Texture2D<float4> _ReferenceTex;
+SamplerState sampler_ReferenceTex;
+
+float3 CmykLerp(float3 c1, float3 c2, float t) {
+    // RGB to CMYK
+    float k1 = 1.0 - max(max(c1.r, c1.g), c1.b);
+    float invK1 = (k1 < 0.999) ? (1.0 - k1) : 0.001;
+    float3 cmy1 = float3((1.0 - c1.r - k1) / invK1,
+                         (1.0 - c1.g - k1) / invK1,
+                         (1.0 - c1.b - k1) / invK1);
+
+    float k2 = 1.0 - max(max(c2.r, c2.g), c2.b);
+    float invK2 = (k2 < 0.999) ? (1.0 - k2) : 0.001;
+    float3 cmy2 = float3((1.0 - c2.r - k2) / invK2,
+                         (1.0 - c2.g - k2) / invK2,
+                         (1.0 - c2.b - k2) / invK2);
+
+    // Mix in CMYK
+    float3 cmyMix = lerp(cmy1, cmy2, t);
+    float kMix = lerp(k1, k2, t);
+
+    // CMYK to RGB
+    float3 rgb = (1.0 - saturate(cmyMix)) * (1.0 - kMix);
+    return saturate(rgb);
+}
+
+[numthreads(16, 16, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= (uint)_Width || id.y >= (uint)_Height) return;
+
+    // Layout:
+    // _PairCount blocks vertically.
+    // Each block has 4 strips:
+    // Strip 0 (top): Additive (RGB Lerp)
+    // Strip 1: Subtractive (CMYK Lerp)
+    // Strip 2: PolyMixer (HLSL Shader)
+    // Strip 3 (bottom): KM Physics Reference (Texture sampled)
+
+    int totalY = _Height - 1 - id.y; // top-to-bottom
+    int blockHeight = _Height / _PairCount;
+    int pairIndex = totalY / blockHeight;
+    if (pairIndex >= _PairCount) pairIndex = _PairCount - 1;
+
+    int yInBlock = totalY % blockHeight;
+    int stripMargin = 2;
+    int contentHeight = blockHeight - stripMargin * 2;
+    int stripHeight = contentHeight / 4;
+
+    int stripIndex = (yInBlock - stripMargin) / stripHeight;
+    if (yInBlock < stripMargin || stripIndex >= 4) {
+        // Border / Background dark gray
+        Result[id.xy] = float4(0.12, 0.12, 0.14, 1.0);
+        return;
+    }
+
+    float t = saturate((float)id.x / (float)(_Width - 1));
+    float3 c1 = _Color1[pairIndex].rgb;
+    float3 c2 = _Color2[pairIndex].rgb;
+
+    float3 finalColor = 0;
+
+    if (stripIndex == 0) {
+        // 1. Additive (RGB linear lerp)
+        finalColor = lerp(c1, c2, t);
+    } else if (stripIndex == 1) {
+        // 2. Subtractive (CMYK lerp)
+        finalColor = CmykLerp(c1, c2, t);
+    } else if (stripIndex == 2) {
+        // 3. PolyMixer (Shader implementation)
+        finalColor = PolyMixer_Lerp(c1, c2, t);
+    } else {
+        // 4. KM Reference (sampled from CPU-rendered texture)
+        // Texture UV: x = t, y = (pairIndex + 0.5) / _PairCount
+        float2 uv = float2(t, ((float)pairIndex + 0.5) / (float)_PairCount);
+        finalColor = _ReferenceTex.SampleLevel(sampler_ReferenceTex, uv, 0).rgb;
+    }
+
+    // Add thin divider between strips
+    int yInStrip = (yInBlock - stripMargin) % stripHeight;
+    if (yInStrip == 0 || yInStrip == stripHeight - 1) {
+        finalColor *= 0.7; // subtle dark border
+    }
+
+    Result[id.xy] = float4(finalColor, 1.0);
+}
