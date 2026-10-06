@@ -24,10 +24,10 @@ public static class ColorMixCompareRunner {
         int pairCount = 5;
         int headerHeight = 90;
         int labelHeight = 22;
-        int stripHeight = 28;
+        int stripHeight = 26;
         int stripGap = 3;
-        int blockGap = 18;
-        int blockContentHeight = labelHeight + 3 * (stripHeight + stripGap);
+        int blockGap = 16;
+        int blockContentHeight = labelHeight + 4 * (stripHeight + stripGap);
         int totalBlockHeight = blockContentHeight + blockGap;
         int height = headerHeight + totalBlockHeight * pairCount + 16;
 
@@ -86,7 +86,7 @@ public static class ColorMixCompareRunner {
             // Compute strips
             int stripTop = blockTop - labelHeight;
 
-            for (int sIdx = 0; sIdx < 3; sIdx++) {
+            for (int sIdx = 0; sIdx < 4; sIdx++) {
                 int sY = stripTop - (sIdx + 1) * (stripHeight + stripGap);
 
                 for (int sx = 0; sx < stripWidth; sx++) {
@@ -99,9 +99,12 @@ public static class ColorMixCompareRunner {
                     } else if (sIdx == 1) {
                         // 2. Subtractive (CMYK Lerp)
                         col = CmykLerp(pair.c1, pair.c2, t);
-                    } else {
+                    } else if (sIdx == 2) {
                         // 3. PolyMixer (HLSL Shader Implementation)
                         col = PolyMixer.Lerp(pair.c1, pair.c2, t);
+                    } else {
+                        // 4. Spectral.js (38-wavelength Kubelka-Munk)
+                        col = SpectralMixer.Lerp(pair.c1, pair.c2, t);
                     }
 
                     // Write strip pixel band
@@ -125,7 +128,7 @@ public static class ColorMixCompareRunner {
         Directory.CreateDirectory(outDir);
         string outPath = Path.Combine(outDir, "ColorMixing_Comparison.png");
         File.WriteAllBytes(outPath, pngBytes);
-        Debug.Log($"Generated refined comparison PNG (Policy 2) at: {outPath} ({pngBytes.Length} bytes)");
+        Debug.Log($"Generated refined comparison PNG (4-Way) at: {outPath} ({pngBytes.Length} bytes)");
     }
 
     #region private methods
@@ -155,13 +158,14 @@ public static class ColorMixCompareRunner {
     }
 
     private static void DrawHeader(Texture2D tex, int w, int h, int headerH) {
-        DrawString(tex, 20, h - 28, "COLOR MIXING COMPARISON: ADDITIVE vs SUBTRACTIVE vs POLYMIXER (HLSL)", Color.white, 2);
-        DrawString(tex, 20, h - 48, "PHYSICS-BASED PIGMENT MIXING: BLUE + YELLOW PRODUCES VIBRANT GREEN ONLY IN POLYMIXER", new Color(0.65f, 0.70f, 0.78f), 1);
+        DrawString(tex, 20, h - 28, "COLOR MIXING COMPARISON: RGB vs CMYK vs POLYMIXER vs SPECTRAL.JS", Color.white, 2);
+        DrawString(tex, 20, h - 48, "PIGMENT BENCHMARK: 4TH-ORDER POLYNOMIAL vs 38-WAVELENGTH KUBELKA-MUNK", new Color(0.65f, 0.70f, 0.78f), 1);
 
         int legendY = h - 75;
-        DrawLegendItem(tex, 20, legendY, "[1] ADDITIVE (RGB LERP)", new Color(0.9f, 0.35f, 0.35f));
-        DrawLegendItem(tex, 280, legendY, "[2] SUBTRACTIVE (CMYK LERP)", new Color(0.25f, 0.75f, 0.95f));
-        DrawLegendItem(tex, 560, legendY, "[3] POLYMIXER (HLSL SHADER)", new Color(0.25f, 0.95f, 0.45f));
+        DrawLegendItem(tex, 20, legendY, "[1] RGB LERP", new Color(0.9f, 0.35f, 0.35f));
+        DrawLegendItem(tex, 190, legendY, "[2] CMYK LERP", new Color(0.25f, 0.75f, 0.95f));
+        DrawLegendItem(tex, 420, legendY, "[3] POLYMIXER (HLSL)", new Color(0.25f, 0.95f, 0.45f));
+        DrawLegendItem(tex, 680, legendY, "[4] SPECTRAL.JS (KM)", new Color(1.0f, 0.75f, 0.20f));
     }
 
     private static void DrawLegendItem(Texture2D tex, int x, int y, string label, Color tagColor) {

@@ -99,3 +99,15 @@ Color green = PolyMixer.Lerp(blue, yellow, 0.5f);
 3. **色空間（sRGB / Linear）**:
    - PolyMixer は **sRGB 空間** のカラー知覚データ（Mixbox）に基づいて訓練されています。
    - Unity のプロジェクト設定が Linear カラースペースの場合、シェーダーに入力する前に Linear $\to$ sRGB 変換（`LinearToGammaSpace`）を行い、PolyMixer で混色後に sRGB $\to$ Linear 変換（`GammaToLinearSpace`）を行うと、意図した通りの鮮やかな発色が得られます。
+
+---
+
+## 6. SpectralMixer との使い分け（代替エンジン）
+
+本リポジトリには、物理ベース混色の代替実装として [Spectral.js](https://github.com/rvanwijnen/spectral.js) を移植した [SpectralMixer.cs](file:///c:/Users/nakata/Repo/generic-pigment-mixer/Assets/Scripts/SpectralMixer.cs) および [SpectralMixer.hlsl](file:///c:/Users/nakata/Repo/generic-pigment-mixer/Assets/Shaders/SpectralMixer.hlsl) も同梱されています。
+
+| 用途・要件 | 推奨エンジン | 理由 |
+| :--- | :--- | :--- |
+| **ゲーム描画 / ポストプロセス / パーティクル** | **PolyMixer** | 約 330 FMA、レジスタ消費極小、テクスチャ0、ストレートライン実行で GPU フィルレートを圧迫しないため。 |
+| **絵の具パレット調色 / デジタルペイント** | **SpectralMixer** | 3色以上の任意配合比率や、各色の着色力（Tinting Strength）パラメータを物理濃度空間で自然に扱えるため。 |
+| **最高峰の実在絵具リアリズム (商用有償)** | **Mixbox (本家)** | 3D LUT を用いた実在絵具の正確な光学挙動。 |
