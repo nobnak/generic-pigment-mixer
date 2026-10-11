@@ -1,57 +1,59 @@
 # Generic Pigment Mixer for Unity
 
-Unity 向けのリアルタイム・物理顔料混色（ピグメントミキサー）ライブラリです。  
-[justinh-rahb/filament-mixer](https://github.com/justinh-rahb/filament-mixer) で開発された 4次多項式モデル（**PolyMixer**）を HLSL シェーダーおよび C# に完全移植し、従来のデジタル加色・減色補間で発生していた「色の濁り（青＋黄が灰色になる現象）」を解消します。
+**English** | [日本語](README.ja.md)
+
+A real-time physical pigment color mixing library for Unity.  
+A complete port of the 4th-degree polynomial model (**PolyMixer**) developed in [justinh-rahb/filament-mixer](https://github.com/justinh-rahb/filament-mixer) to HLSL shaders and C#, eliminating the "muddy colors" (blue + yellow turning into gray) typical of conventional digital additive and subtractive interpolation.
 
 ---
 
-## 混色手法の比較
+## Comparison of Color Mixing Methods
 
-従来の加色混合（sRGB Lerp）、減色混合（CMYK Lerp）、本プロジェクトの **PolyMixer (HLSL)**、および物理ベースの **Spectral.js (Kubelka-Munk)** の直接比較です。
+A direct comparison of conventional additive mixing (sRGB Lerp), subtractive mixing (CMYK Lerp), this project's **PolyMixer (HLSL)**, and the physics-based **Spectral.js (Kubelka-Munk)**.
 
 ![Color Mixing Comparison](Assets/Artifacts/ColorMixing_Comparison.png)
 
-| 混色手法 | 青＋黄（$t=0.5$）の挙動 | GPU負荷 / メモリ | 特徴・用途 |
+| Mixing Method | Blue + Yellow ($t=0.5$) Behavior | GPU Cost / Memory | Features & Use Cases |
 | :--- | :--- | :--- | :--- |
-| **[1] 加色混合 (RGB Lerp)** | **くすんだ黄土色〜グレー** | 1 ALU | 光の混色。デジタル絵の具・テクスチャブレンドには不適。 |
-| **[2] 減色混合 (CMYK Lerp)** | **暗い青灰色〜グレー** | 数 ALU | インク吸光度モデル。青＋黄は黒沈み・灰色化する。 |
-| **[3] PolyMixer (HLSL)** | **鮮やかなエメラルドグリーン** | **約 330 FMA (テクスチャ0)** | **Mixbox近似のピグメント混色。リアルタイム描画に最適。** |
-| **[4] Spectral.js (KM)** | **ディープエメラルドグリーン** | **1,000+ ALU (38反復ループ)** | **38波長単一定数KM物理モデル。多色混色・着色力指定に対応。** |
+| **[1] Additive (RGB Lerp)** | **Dull ocher to gray** | 1 ALU | Light mixing. Unsuitable for digital paint or texture blending. |
+| **[2] Subtractive (CMYK Lerp)** | **Dark blue-gray to gray** | A few ALUs | Ink absorption model. Blue + Yellow darkens and grays out. |
+| **[3] PolyMixer (HLSL)** | **Vibrant emerald green** | **~330 FMAs (0 textures)** | **Mixbox-approximated pigment mixing. Ideal for real-time rendering.** |
+| **[4] Spectral.js (KM)** | **Deep emerald green** | **1,000+ ALUs (38-iteration loop)** | **38-wavelength single-constant KM physical model. Supports multi-color mixing & tinting strength.** |
 
 ---
 
-## 主な特徴
+## Key Features
 
-- **青＋黄＝緑になる自然なピグメント混色**:
-  - デジタルペイント、プロシージャルテクスチャ、スプラトゥーン風のインク混色、マテリアルブレンドに最適。
-- **テクスチャサンプラー・3D LUT 完全不要**:
-  - 本家 Mixbox のような巨大な 3D LUT テクスチャ（数十MB〜192MB）や VRAM 帯域を一切消費しません。
-- **純粋な ALU 演算（約 330 FMA）**:
-  - 単項式基底と係数テーブルを展開したストレートライン計算により、ピクセルシェーダー上で数ナノ秒で完了します。
-- **C# / HLSL 両対応**:
-  - シェーダーだけでなく、CPU 側（テクスチャ事前ベイクやゲームロジック等）でも全く同一の混色結果が得られます。
-- **Spectral.js 実装も同梱**:
-  - 3色以上の同時調合や着色力（Tinting Strength）パラメータを扱いたい用途向けに、38波長 Kubelka-Munk 物理エンジン（`SpectralMixer.cs` / `SpectralMixer.hlsl`）も収録。
+- **Natural Pigment Mixing (Blue + Yellow = Green)**:
+  - Ideal for digital painting, procedural textures, Splatoon-like ink mixing, and material blending.
+- **Zero Texture Samplers & 3D LUTs**:
+  - Requires no massive 3D LUT textures (dozens of MBs to 192 MB) like original Mixbox, consuming zero VRAM bandwidth.
+- **Pure ALU Computation (~330 FMAs)**:
+  - Evaluated via straight-line computations with unrolled monomial bases and coefficient tables, finishing within nanoseconds on pixel shaders.
+- **Both C# and HLSL Supported**:
+  - Produces identical color mixing results across shaders and CPU-side logic (texture pre-baking, game logic, etc.).
+- **Spectral.js Implementation Included**:
+  - Includes a 38-wavelength Kubelka-Munk physics engine (`SpectralMixer.cs` / `SpectralMixer.hlsl`) for scenarios requiring simultaneous mixing of 3+ colors or tinting strength parameters.
 
 ---
 
-## PolyMixer vs Spectral.js の使い分け
+## When to Use: PolyMixer vs Spectral.js
 
-| 項目 | PolyMixer (推奨) | Spectral.js |
+| Feature | PolyMixer (Recommended) | Spectral.js |
 | :--- | :--- | :--- |
-| **主な用途** | リアルタイム 3D / ポストプロセス / ゲーム描画 | パレット調合ツール / デジタルペイント / 物理実験 |
-| **シェーダー適性** | **◎ 最適**（低レジスタ圧・ループなし） | **△ 注意**（38ループ・配列による高レジスタ圧） |
-| **混合の柔軟性** | 2色ペア補間（$t \in [0, 1]$） | **任意 N 色の同時混色 ＋ 着色力 ($T$) 指定** |
-| **端点色保証** | **完全保証**（$t=0 \implies C_1, t=1 \implies C_2$） | 近似（RGB $\to$ スペクトル $\to$ RGB で微小誤差） |
-| **ライセンス** | **MIT License** | **MIT License** |
+| **Primary Use Cases** | Real-time 3D / Post-processing / Gameplay rendering | Palette mixing tools / Digital painting / Physics experiments |
+| **Shader Suitability** | **◎ Optimal** (Low register pressure, loop-free) | **△ Caution** (High register pressure due to 38-iteration loop & arrays) |
+| **Mixing Flexibility** | 2-color pair interpolation ($t \in [0, 1]$) | **Simultaneous multi-color ($N \ge 2$) mixing + Tinting strength ($T$)** |
+| **Endpoint Invariance** | **Guaranteed** ($t=0 \implies C_1, t=1 \implies C_2$) | Approximate (Small errors during RGB $\to$ Spectral $\to$ RGB conversion) |
+| **License** | **MIT License** | **MIT License** |
 
 ---
 
-## クイックスタート
+## Quick Start
 
-### 1. HLSL シェーダーでの利用
+### 1. Usage in HLSL Shaders
 
-任意の `.shader` や `.hlsl` でインクルードし、`PolyMixer_Lerp` を呼び出します。
+Include `PolyMixer.hlsl` in your `.shader` or `.hlsl` and call `PolyMixer_Lerp`:
 
 ```hlsl
 #include "Assets/Shaders/PolyMixer.hlsl"
@@ -61,73 +63,73 @@ fixed4 frag(v2f i) : SV_Target {
     float3 colB = _PaintColor.rgb;
     float t = _BlendRatio; // 0.0 ~ 1.0
 
-    // 従来の lerp の代わりに呼ぶだけ (青+黄 -> 鮮やかな緑)
+    // Simply replace standard lerp (Blue + Yellow -> Vibrant Green)
     float3 mixed = PolyMixer_Lerp(colA, colB, t);
 
     return float4(mixed, 1.0);
 }
 ```
 
-### 2. Shader Graph での利用
-1. **Custom Function** ノードを作成。
-2. **Type**: `File` を選び、`Assets/Shaders/PolyMixer.hlsl` を指定。
+### 2. Usage in Shader Graph
+1. Create a **Custom Function** node.
+2. **Type**: Select `File` and set `Assets/Shaders/PolyMixer.hlsl`.
 3. **Name**: `PolyMixer_Lerp`
 4. **Inputs**: `c1` (Vector3), `c2` (Vector3), `t` (Float)
 5. **Outputs**: `Out` (Vector3)
 
-### 3. C# スクリプトでの利用
+### 3. Usage in C# Scripts
 
 ```csharp
 using UnityEngine;
 
-// 青 (0, 33, 133) と 黄 (252, 211, 0) を 50% で混色
+// Mix Blue (0, 33, 133) and Yellow (252, 211, 0) at 50%
 Color blue = new Color(0f / 255f, 33f / 255f, 133f / 255f);
 Color yellow = new Color(252f / 255f, 211f / 255f, 0f / 255f);
 
 Color green = PolyMixer.Lerp(blue, yellow, 0.5f);
-// green -> RGB(47, 141, 56) (鮮やかなグリーン)
+// green -> RGB(47, 141, 56) (Vibrant green)
 ```
 
 ---
 
-## ディレクトリ構成
+## Directory Structure
 
 ```text
 ├── Assets/
 │   ├── Artifacts/
-│   │   └── ColorMixing_Comparison.png  # 4手法の視覚的比較画像 (RGB/CMYK/PolyMixer/Spectral)
+│   │   └── ColorMixing_Comparison.png  # Visual comparison image of 4 methods (RGB/CMYK/PolyMixer/Spectral)
 │   ├── Scripts/
-│   │   ├── PolyMixer.cs                # 4次多項式 C# 実装
-│   │   ├── SpectralMixer.cs            # Spectral.js (38波長 KM) C# 実装
-│   │   ├── KubelkaMunk.cs              # 38波長 KM 物理リファレンス実装 (filament-mixer)
+│   │   ├── PolyMixer.cs                # 4th-degree polynomial C# implementation
+│   │   ├── SpectralMixer.cs            # Spectral.js (38-wavelength KM) C# implementation
+│   │   ├── KubelkaMunk.cs              # 38-wavelength KM physics reference implementation (filament-mixer)
 │   │   └── Editor/
-│   │       └── ColorMixCompareRunner.cs # 4方式比較画像生成エディタランナー
+│   │       └── ColorMixCompareRunner.cs # Editor runner to generate comparison images
 │   └── Shaders/
-│       ├── PolyMixer.hlsl              # ピグメント混色 HLSL シェーダー関数 (本採用)
-│       ├── SpectralMixer.hlsl          # Spectral.js HLSL シェーダー関数
-│       └── ColorMixCompare.compute     # 比較画像生成コンピュートシェーダー
+│       ├── PolyMixer.hlsl              # HLSL pigment mixing shader function (Primary)
+│       ├── SpectralMixer.hlsl          # Spectral.js HLSL shader function
+│       └── ColorMixCompare.compute     # Compute shader for generating comparison images
 ├── Docs/
-│   ├── POLYMIXER_USER_GUIDE.md         # 詳細ユーザーガイド & パフォーマンス
-│   └── RESEARCH_AND_COMPARISON.md      # 調査・数理比較・KM法・Spectral.js検証記録
+│   ├── POLYMIXER_USER_GUIDE.md         # Detailed user guide & performance notes
+│   └── RESEARCH_AND_COMPARISON.md      # Research, mathematical comparison, KM method, and Spectral.js verification notes
 └── Tools/
-    ├── generate_polymixer.ps1          # C++係数からHLSL/C#コードを生成するスクリプト
-    └── filament_mixer_raw.h            # 原典のC++ヘッダー
+    ├── generate_polymixer.ps1          # Script to generate HLSL/C# code from C++ coefficients
+    └── filament_mixer_raw.h            # Original C++ header
 ```
 
 ---
 
-## 詳細ドキュメント
+## Detailed Documentation
 
-より詳しい実装仕様や技術的背景は以下のドキュメントを参照してください：
+Refer to the following documents for more detailed technical specifications and background:
 
-- [**PolyMixer ユーザーガイド & パフォーマンスリファレンス**](Docs/POLYMIXER_USER_GUIDE.md)  
-  API シグネチャ、Shader Graph 連携、GPU リソース詳細（FMA 演算量・帯域）、色空間（sRGB / Linear）の推奨事項。
-- [**調査・比較・検証記録 (Technical Report)**](Docs/RESEARCH_AND_COMPARISON.md)  
-  PolyMixer vs GPMixer の比較、Kubelka-Munk 物理法における色域制約の数理的分析、残差補正実験の経緯。
+- [**PolyMixer User Guide & Performance Reference**](Docs/POLYMIXER_USER_GUIDE.md)  
+  API signatures, Shader Graph integration, GPU resource breakdown (FMA instructions, bandwidth), and color space recommendations (sRGB / Linear).
+- [**Research, Comparison & Technical Report**](Docs/RESEARCH_AND_COMPARISON.md)  
+  PolyMixer vs. GPMixer comparison, mathematical analysis of gamut constraints in the Kubelka-Munk model, and residual correction experiments.
 
 ---
 
-## クレジット・参考
+## Credits & References
 
 - [justinh-rahb/filament-mixer](https://github.com/justinh-rahb/filament-mixer) (MIT License)
 - [Mixbox](https://github.com/scrtwpns/mixbox) (Secret Weapons / Sochorová & Jamriška, 2021)
