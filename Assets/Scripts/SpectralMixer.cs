@@ -13,6 +13,44 @@ public static class SpectralMixer {
         return Mix(c1, c2, 1f - t, t, 1f, 1f);
     }
 
+    public static Color Mix(Color[] colors, float[] weights = null) {
+        if (colors == null || colors.Length == 0) return Color.black;
+        if (colors.Length == 1) return colors[0];
+
+        Span<float> ksMix = stackalloc float[SPECTRAL_SIZE];
+        ksMix.Clear();
+
+        float totalC = 0f;
+        Span<float> R = stackalloc float[SPECTRAL_SIZE];
+
+        for (int k = 0; k < colors.Length; k++) {
+            Color c = colors[k];
+            float w = (weights != null && k < weights.Length) ? weights[k] : 1f;
+            if (w <= 0f) continue;
+
+            float3 lrgb = SrgbToLinear(new float3(c.r, c.g, c.b));
+            LinearToReflectance(lrgb, R);
+            float lum = ReflectanceToXyz(R).y;
+            float ck = (w * w) * lum;
+            totalC += ck;
+
+            for (int i = 0; i < SPECTRAL_SIZE; i++) {
+                ksMix[i] += KS(R[i]) * ck;
+            }
+        }
+
+        if (totalC <= 0f) return colors[0];
+
+        Span<float> Rmix = stackalloc float[SPECTRAL_SIZE];
+        for (int i = 0; i < SPECTRAL_SIZE; i++) {
+            Rmix[i] = KM(ksMix[i] / totalC);
+        }
+
+        float3 xyz = ReflectanceToXyz(Rmix);
+        float3 srgb = XyzToSrgb(xyz);
+        return new Color(srgb.x, srgb.y, srgb.z, 1f);
+    }
+
     public static Color Mix(Color c1, Color c2, float factor1, float factor2, float tint1 = 1f, float tint2 = 1f) {
         float3 rgb1 = new float3(c1.r, c1.g, c1.b);
         float3 rgb2 = new float3(c2.r, c2.g, c2.b);
@@ -118,7 +156,7 @@ public static class SpectralMixer {
     private const float SPECTRAL_GAMMA = 2.4f;
     private const float SPECTRAL_EPSILON = 1e-16f;
 
-    private static readonly float[,] BASES = new float[38, 7] {
+    internal static readonly float[,] BASES = new float[38, 7] {
         { 1.0011607271876399f, 0.9705850013229620f, 0.9906735573199880f, 0.0210523371789306f, 0.0315605737777207f, 0.0095560747554212f, 0.9794047525020140f },
         { 1.0011606515972800f, 0.9705924981434250f, 0.9906715249619790f, 0.0210564627517414f, 0.0315520718330149f, 0.0095581580120851f, 0.9794007068431300f },
         { 1.0011603192274701f, 0.9706253487298910f, 0.9906625823534210f, 0.0210746178695038f, 0.0315148215513658f, 0.0095673245444588f, 0.9793829034702610f },
@@ -159,7 +197,7 @@ public static class SpectralMixer {
         { 1.0005449969930000f, 0.0145038009464639f, 0.9722813248265600f, 0.9847028681227949f, 0.9856965214637620f, 0.0281260133612096f, 0.0157648801149616f },
     };
 
-    private static readonly float3[] CMF = new float3[38] {
+    internal static readonly float3[] CMF = new float3[38] {
         new float3(0.0000646919989576f, 0.0000018442894440f, 0.0003050171476380f),
         new float3(0.0002194098998132f, 0.0000062053235865f, 0.0010368066663574f),
         new float3(0.0011205743509343f, 0.0000310096046799f, 0.0053131363323992f),
