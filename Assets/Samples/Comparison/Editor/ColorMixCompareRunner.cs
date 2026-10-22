@@ -16,6 +16,51 @@ public static class ColorMixCompareRunner {
         }
     }
 
+    [MenuItem("FilamentMixer/Validate ColorMixComparison Scene")]
+    public static void ValidateSampleScene() {
+        Debug.Log("Validating ColorMixComparison scene...");
+        var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/Samples/Comparison/Scenes/ColorMixComparison.unity");
+        if (!scene.IsValid()) throw new Exception("ColorMixComparison scene could not be opened!");
+
+        var demo = UnityEngine.Object.FindFirstObjectByType<Nobnak.PigmentMixer.Samples.ColorMixSampleDemo>();
+        if (demo == null) throw new Exception("ColorMixSampleDemo component was not found in ColorMixComparison scene!");
+
+        string outDir = Path.Combine(Application.dataPath, "Artifacts");
+        Directory.CreateDirectory(outDir);
+
+        // 1. Interactive Blend
+        demo.Mode = Nobnak.PigmentMixer.Samples.ColorMixSampleDemo.DisplayMode.InteractiveBlend;
+        demo.Preset = Nobnak.PigmentMixer.Samples.ColorMixSampleDemo.PresetPair.MixboxCanonical;
+        demo.BlendRatio = 0.5f;
+        demo.ForceRefresh();
+        var tex = demo.OutputTexture;
+        if (tex == null || tex.width != 960 || tex.height != 540) throw new Exception($"Invalid texture for InteractiveBlend: {tex}");
+        File.WriteAllBytes(Path.Combine(outDir, "ColorMix_Interactive_Blend_Demo.png"), tex.EncodeToPNG());
+        Debug.Log("Saved ColorMix_Interactive_Blend_Demo.png");
+
+        // 2. All Presets Overview
+        demo.Mode = Nobnak.PigmentMixer.Samples.ColorMixSampleDemo.DisplayMode.AllPresetsOverview;
+        demo.ForceRefresh();
+        tex = demo.OutputTexture;
+        if (tex == null || tex.width != 980 || tex.height != 640) throw new Exception($"Invalid texture for AllPresetsOverview: {tex}");
+        File.WriteAllBytes(Path.Combine(outDir, "ColorMix_Overview_Demo.png"), tex.EncodeToPNG());
+        Debug.Log("Saved ColorMix_Overview_Demo.png");
+
+        // 3. Downsampling Comparison
+        demo.Mode = Nobnak.PigmentMixer.Samples.ColorMixSampleDemo.DisplayMode.DownsamplingComparison;
+        demo.ForceRefresh();
+        tex = demo.OutputTexture;
+        if (tex == null || tex.width != 1040 || tex.height != 640) throw new Exception($"Invalid texture for DownsamplingComparison: {tex}");
+        File.WriteAllBytes(Path.Combine(outDir, "ColorMix_Downsampling_Demo.png"), tex.EncodeToPNG());
+        Debug.Log("Saved ColorMix_Downsampling_Demo.png");
+
+        // Reset to default Interactive mode
+        demo.Mode = Nobnak.PigmentMixer.Samples.ColorMixSampleDemo.DisplayMode.InteractiveBlend;
+        demo.ForceRefresh();
+        UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene);
+        Debug.Log("ColorMixComparison scene validation passed successfully!");
+    }
+
     [MenuItem("FilamentMixer/Run Comparison Image Generation (Policy 2)")]
     public static void RunComparison() {
         Debug.Log("Starting Color Mixing Comparison Generation (Policy 2: 3-Way Clean Comparison)...");
