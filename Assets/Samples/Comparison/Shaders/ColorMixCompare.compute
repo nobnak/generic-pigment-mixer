@@ -1,6 +1,6 @@
 #pragma kernel CSMain
 
-#include "PolyMixer.hlsl"
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/PolyMixer.hlsl"
 
 RWTexture2D<float4> Result;
 

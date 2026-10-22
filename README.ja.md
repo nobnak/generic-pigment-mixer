@@ -31,6 +31,29 @@ Unity 向けのリアルタイム・物理顔料混色（ピグメントミキ�
 
 ---
 
+## インストール (UPM)
+
+Unity Package Manager の「**Add package from git URL...**」または `Packages/manifest.json` に以下を追加して導入します：
+
+```text
+https://github.com/nobnak/generic-pigment-mixer.git?path=/Packages/jp.nobnak.generic_pigment_mixer
+```
+
+`Packages/manifest.json`:
+```json
+{
+  "dependencies": {
+    "jp.nobnak.generic_pigment_mixer": "https://github.com/nobnak/generic-pigment-mixer.git?path=/Packages/jp.nobnak.generic_pigment_mixer",
+    "com.unity.mathematics": "1.2.6"
+  }
+}
+```
+
+### サンプルのインポート
+Package Manager で本パッケージ（**Generic Pigment Mixer**）を選択し、**Samples** タブから **Pigment Mixing Comparison** の「**Import**」ボタンを押すと、比較用シーンやベンチマーク実行ツールがプロジェクトに展開されます。
+
+---
+
 ## 1. PolyMixer (4次多項式近似エンジン)
 
 [filament-mixer](https://github.com/justinh-rahb/filament-mixer) の多項式モデルを完全移植した超軽量エンジンです。LUT やテクスチャフェッチを一切使わず、ALU 演算（約 330 FMA）のみで Mixbox 近似の鮮やかな発色を実現します。
@@ -41,7 +64,7 @@ Unity 向けのリアルタイム・物理顔料混色（ピグメントミキ�
 
 ### HLSL での利用
 ```hlsl
-#include "Assets/Shaders/PolyMixer.hlsl"
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/PolyMixer.hlsl"
 
 fixed4 frag(v2f i) : SV_Target {
     float3 colA = tex2D(_MainTex, i.uv).rgb;
@@ -56,7 +79,7 @@ fixed4 frag(v2f i) : SV_Target {
 
 ### Shader Graph での利用
 1. **Custom Function** ノードを作成。
-2. **Type**: `File` を選び、`Assets/Shaders/PolyMixer.hlsl` を指定。
+2. **Type**: `File` を選び、`Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/PolyMixer.hlsl` を指定。
 3. **Name**: `PolyMixer_Lerp`
 4. **Inputs**: `c1` (Vector3), `c2` (Vector3), `t` (Float)
 5. **Outputs**: `Out` (Vector3)
@@ -86,7 +109,7 @@ Color green = PolyMixer.Lerp(blue, yellow, 0.5f);
 
 ### HLSL: 2 色混色
 ```hlsl
-#include "Assets/Shaders/SpectralMixer16.hlsl"
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/SpectralMixer16.hlsl"
 
 // Linear RGB の 2 色を比率 t で混色
 float3 mixedLinear = Spectral16_Lerp(colA_Linear.rgb, colB_Linear.rgb, t);
@@ -94,7 +117,7 @@ float3 mixedLinear = Spectral16_Lerp(colA_Linear.rgb, colB_Linear.rgb, t);
 
 ### HLSL: 2x2 ピクセル縮小 (Mipmap / Box フィルタ)
 ```hlsl
-#include "Assets/Shaders/SpectralMixer16.hlsl"
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/SpectralMixer16.hlsl"
 
 // 4テクセルを絵の具として調合し、彩度を落とさずに 1 テクセルへ縮小
 float3 downsampled = Spectral16_Downsample2x2(c00, c10, c01, c11);
@@ -102,7 +125,7 @@ float3 downsampled = Spectral16_Downsample2x2(c00, c10, c01, c11);
 
 ### HLSL: 任意ブロック集約 (Compute Shader / アキュムレータ)
 ```hlsl
-#include "Assets/Shaders/SpectralMixer16.hlsl"
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/SpectralMixer16.hlsl"
 
 Spectral16_Accum acc = Spectral16_Accum_New();
 
@@ -167,35 +190,54 @@ Color palette = SpectralMixer16.Mix(new Color[] { c1, c2, c3 }, new float[] { 1f
 ## ディレクトリ構成
 
 ```text
-├── Assets/
-│   ├── Artifacts/
-│   │   ├── Spectral16_ColorMixing_Comparison.png # 16次元KM vs 38D vs PolyMixer 2色混色比較
-│   │   ├── Spectral16_Downsampling_Comparison.png# 16次元KM vs 加色平均 画素平均化比較
-│   │   ├── ColorMixing_Comparison.png            # 4手法の初期視覚的比較画像
-│   │   └── Dimension_Downsampling_Comparison.png # 8D/12D/16D総合ベンチマーク比較画像
-│   ├── Scripts/
-│   │   ├── PolyMixer.cs                # 4次多項式 C# 実装
-│   │   ├── SpectralMixer16.cs          # 16次元 KM C# 実装 (Linear RGB)
-│   │   ├── SpectralMixerN.cs           # 汎用 K次元 (8D/12D/16D/38D) KM 実装
-│   │   ├── SpectralMixer.cs            # Spectral.js (38波長 KM) C# 実装
-│   │   ├── KubelkaMunk.cs              # 38波長 KM 物理リファレンス実装 (filament-mixer)
-│   │   └── Editor/
-│   │       ├── Spectral16ExperimentRunner.cs     # Spectral16 2実験画像生成エディタランナー
-│   │       ├── DimensionAndDownsamplingCompareRunner.cs # 8D/12D/16D総合ベンチマークランナー
-│   │       ├── DownsamplingCompareRunner.cs      # ダウンサンプリング比較エディタランナー
-│   │       └── ColorMixCompareRunner.cs          # 4方式比較画像生成エディタランナー
-│   └── Shaders/
-│       ├── PolyMixer.hlsl              # ピグメント混色 HLSL シェーダー関数 (約330 FMA)
-│       ├── SpectralMixer16.hlsl        # 16次元 KM HLSL シェーダー (float4x4 SIMD, Linear RGB)
-│       ├── Spectral16_Constants.inc.hlsl # 16バンド定数テーブル
-│       ├── SpectralMixer.hlsl          # 38波長 Spectral.js HLSL シェーダー関数
-│       └── ColorMixCompare.compute     # 比較画像生成コンピュートシェーダー
+├── Assets/                                     # 開発・動作確認用プロジェクト
+│   ├── Artifacts/                              # ベンチマーク画像（ドキュメント用）
+│   ├── Editor/
+│   │   └── PigmentMixer.Dev/                   # 開発用: コンパイル時に Samples~ へ同期
+│   │       ├── PigmentMixer.Dev.Editor.asmdef
+│   │       └── PigmentMixerSampleCompileSync.cs
+│   └── Samples/
+│       └── Comparison/                         # 開発用サンプル原本
+│           ├── GenericPigmentMixer.Samples.asmdef
+│           ├── ColorMixSampleDemo.cs
+│           ├── Scenes/
+│           │   └── ColorMixComparison.unity
+│           ├── Shaders/
+│           │   └── ColorMixCompare.compute
+│           └── Editor/
+│               ├── GenericPigmentMixer.Samples.Editor.asmdef
+│               ├── Spectral16ExperimentRunner.cs
+│               ├── DimensionAndDownsamplingCompareRunner.cs
+│               ├── DownsamplingCompareRunner.cs
+│               ├── ColorMixCompareRunner.cs
+│               ├── SpectralReductionCompareRunner.cs
+│               └── Spectral16TableExporter.cs
+├── Packages/
+│   ├── manifest.json
+│   └── jp.nobnak.generic_pigment_mixer/         # ★ UPM パッケージ本体
+│       ├── package.json                        # パッケージマニフェスト
+│       ├── GenericPigmentMixer.asmdef          # コア asmdef (Mathematics参照)
+│       ├── LICENSE                             # MIT ライセンス
+│       ├── Runtime/                            # コア C# 実装
+│       │   ├── PolyMixer.cs
+│       │   ├── SpectralMixer16.cs
+│       │   ├── SpectralMixerN.cs
+│       │   ├── SpectralMixer8.cs
+│       │   ├── SpectralMixer.cs
+│       │   └── KubelkaMunk.cs
+│       ├── ShaderLibrary/                      # コア HLSL インクルード
+│       │   ├── PolyMixer.hlsl
+│       │   ├── SpectralMixer16.hlsl
+│       │   ├── Spectral16_Constants.inc.hlsl
+│       │   └── SpectralMixer.hlsl
+│       └── Samples~/                           # UPM 配布用サンプル（自動同期）
+│           └── Comparison/
 ├── Docs/
-│   ├── POLYMIXER_USER_GUIDE.md         # 詳細ユーザーガイド & パフォーマンス
-│   └── RESEARCH_AND_COMPARISON.md      # 調査・数理比較・KM法・Spectral.js検証記録
+│   ├── POLYMIXER_USER_GUIDE.md
+│   └── RESEARCH_AND_COMPARISON.md
 └── Tools/
-    ├── generate_polymixer.ps1          # C++係数からHLSL/C#コードを生成するスクリプト
-    └── filament_mixer_raw.h            # 原典のC++ヘッダー
+    ├── generate_polymixer.ps1
+    └── filament_mixer_raw.h
 ```
 
 ---

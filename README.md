@@ -31,6 +31,29 @@ This library provides **two distinct shader engines** tailored to different perf
 
 ---
 
+## Installation (UPM)
+
+Install via the Unity Package Manager using "**Add package from git URL...**" or by adding it directly to `Packages/manifest.json`:
+
+```text
+https://github.com/nobnak/generic-pigment-mixer.git?path=/Packages/jp.nobnak.generic_pigment_mixer
+```
+
+`Packages/manifest.json`:
+```json
+{
+  "dependencies": {
+    "jp.nobnak.generic_pigment_mixer": "https://github.com/nobnak/generic-pigment-mixer.git?path=/Packages/jp.nobnak.generic_pigment_mixer",
+    "com.unity.mathematics": "1.2.6"
+  }
+}
+```
+
+### Importing Samples
+In Unity's Package Manager window, select **Generic Pigment Mixer**, navigate to the **Samples** tab, and click **Import** next to **Pigment Mixing Comparison** to import comparison scenes and benchmark runner tools.
+
+---
+
 ## 1. PolyMixer (4th-Degree Polynomial Approximation Engine)
 
 An ultra-lightweight engine ported from [filament-mixer](https://github.com/justinh-rahb/filament-mixer). Achieves Mixbox-approximated vibrant pigment mixing purely via straight-line ALU instructions (~330 FMAs), without any textures, LUTs, or texture sampler overhead.
@@ -41,7 +64,7 @@ An ultra-lightweight engine ported from [filament-mixer](https://github.com/just
 
 ### Usage in HLSL Shaders
 ```hlsl
-#include "Assets/Shaders/PolyMixer.hlsl"
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/PolyMixer.hlsl"
 
 fixed4 frag(v2f i) : SV_Target {
     float3 colA = tex2D(_MainTex, i.uv).rgb;
@@ -56,7 +79,7 @@ fixed4 frag(v2f i) : SV_Target {
 
 ### Usage in Shader Graph
 1. Create a **Custom Function** node.
-2. **Type**: `File`, pointing to `Assets/Shaders/PolyMixer.hlsl`.
+2. **Type**: `File`, pointing to `Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/PolyMixer.hlsl`.
 3. **Name**: `PolyMixer_Lerp`
 4. **Inputs**: `c1` (Vector3), `c2` (Vector3), `t` (Float)
 5. **Outputs**: `Out` (Vector3)
@@ -86,7 +109,7 @@ A physics-based shader engine reducing the Kubelka-Munk optical model from [Spec
 
 ### HLSL: 2-Color Mixing
 ```hlsl
-#include "Assets/Shaders/SpectralMixer16.hlsl"
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/SpectralMixer16.hlsl"
 
 // Mix two Linear RGB colors via blend ratio t
 float3 mixedLinear = Spectral16_Lerp(colA_Linear.rgb, colB_Linear.rgb, t);
@@ -94,7 +117,7 @@ float3 mixedLinear = Spectral16_Lerp(colA_Linear.rgb, colB_Linear.rgb, t);
 
 ### HLSL: 2x2 Pixel Downsampling (Mipmap / Box Filter)
 ```hlsl
-#include "Assets/Shaders/SpectralMixer16.hlsl"
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/SpectralMixer16.hlsl"
 
 // Physically blends 4 pixels into 1 without muddy optical averaging
 float3 downsampled = Spectral16_Downsample2x2(c00, c10, c01, c11);
@@ -102,7 +125,7 @@ float3 downsampled = Spectral16_Downsample2x2(c00, c10, c01, c11);
 
 ### HLSL: Arbitrary Block Aggregation (Compute Shader / Accumulator)
 ```hlsl
-#include "Assets/Shaders/SpectralMixer16.hlsl"
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/SpectralMixer16.hlsl"
 
 Spectral16_Accum acc = Spectral16_Accum_New();
 
@@ -167,35 +190,54 @@ Comparison of color preservation when downsampling a $64 \times 64$ checkerboard
 ## Directory Structure
 
 ```text
-├── Assets/
-│   ├── Artifacts/
-│   │   ├── Spectral16_ColorMixing_Comparison.png # 16-band KM vs 38D vs PolyMixer 2-color mixing
-│   │   ├── Spectral16_Downsampling_Comparison.png# 16-band KM vs Additive pixel downsampling
-│   │   ├── ColorMixing_Comparison.png            # Initial 4-way comparison image
-│   │   └── Dimension_Downsampling_Comparison.png # 8D/12D/16D benchmark comparison image
-│   ├── Scripts/
-│   │   ├── PolyMixer.cs                # 4th-degree polynomial C# implementation
-│   │   ├── SpectralMixer16.cs          # 16-band KM C# implementation (Linear RGB)
-│   │   ├── SpectralMixerN.cs           # Generalized K-dimensional (8D/12D/16D/38D) KM
-│   │   ├── SpectralMixer.cs            # Spectral.js (38-wavelength KM) C# implementation
-│   │   ├── KubelkaMunk.cs              # 38-wavelength KM physics reference implementation (filament-mixer)
-│   │   └── Editor/
-│   │       ├── Spectral16ExperimentRunner.cs     # Spectral16 dual-benchmark runner
-│   │       ├── DimensionAndDownsamplingCompareRunner.cs # 8D/12D/16D comprehensive benchmark
-│   │       ├── DownsamplingCompareRunner.cs      # Downsampling comparison runner
-│   │       └── ColorMixCompareRunner.cs          # 4-way comparison image runner
-│   └── Shaders/
-│       ├── PolyMixer.hlsl              # HLSL pigment mixing shader function (~330 FMAs)
-│       ├── SpectralMixer16.hlsl        # 16-band KM HLSL shader (float4x4 SIMD, Linear RGB)
-│       ├── Spectral16_Constants.inc.hlsl # 16-band constants table
-│       ├── SpectralMixer.hlsl          # 38-wavelength Spectral.js HLSL shader function
-│       └── ColorMixCompare.compute     # Compute shader for generating comparison images
+├── Assets/                                     # Development & verification project
+│   ├── Artifacts/                              # Documentation benchmark images
+│   ├── Editor/
+│   │   └── PigmentMixer.Dev/                   # Dev-only: auto-syncs samples to Samples~ on compile
+│   │       ├── PigmentMixer.Dev.Editor.asmdef
+│   │       └── PigmentMixerSampleCompileSync.cs
+│   └── Samples/
+│       └── Comparison/                         # Development sample source
+│           ├── GenericPigmentMixer.Samples.asmdef
+│           ├── ColorMixSampleDemo.cs
+│           ├── Scenes/
+│           │   └── ColorMixComparison.unity
+│           ├── Shaders/
+│           │   └── ColorMixCompare.compute
+│           └── Editor/
+│               ├── GenericPigmentMixer.Samples.Editor.asmdef
+│               ├── Spectral16ExperimentRunner.cs
+│               ├── DimensionAndDownsamplingCompareRunner.cs
+│               ├── DownsamplingCompareRunner.cs
+│               ├── ColorMixCompareRunner.cs
+│               ├── SpectralReductionCompareRunner.cs
+│               └── Spectral16TableExporter.cs
+├── Packages/
+│   ├── manifest.json
+│   └── jp.nobnak.generic_pigment_mixer/         # ★ UPM Package Root
+│       ├── package.json                        # UPM package manifest
+│       ├── GenericPigmentMixer.asmdef          # Core asmdef (Mathematics dependency)
+│       ├── LICENSE                             # MIT license
+│       ├── Runtime/                            # Core C# implementations
+│       │   ├── PolyMixer.cs
+│       │   ├── SpectralMixer16.cs
+│       │   ├── SpectralMixerN.cs
+│       │   ├── SpectralMixer8.cs
+│       │   ├── SpectralMixer.cs
+│       │   └── KubelkaMunk.cs
+│       ├── ShaderLibrary/                      # Core HLSL shader includes
+│       │   ├── PolyMixer.hlsl
+│       │   ├── SpectralMixer16.hlsl
+│       │   ├── Spectral16_Constants.inc.hlsl
+│       │   └── SpectralMixer.hlsl
+│       └── Samples~/                           # UPM Samples (auto-synced)
+│           └── Comparison/
 ├── Docs/
-│   ├── POLYMIXER_USER_GUIDE.md         # Detailed user guide & performance notes
-│   └── RESEARCH_AND_COMPARISON.md      # Research, mathematical comparison, KM method, and Spectral.js verification notes
+│   ├── POLYMIXER_USER_GUIDE.md
+│   └── RESEARCH_AND_COMPARISON.md
 └── Tools/
-    ├── generate_polymixer.ps1          # Script to generate HLSL/C# code from C++ coefficients
-    └── filament_mixer_raw.h            # Original C++ header
+    ├── generate_polymixer.ps1
+    └── filament_mixer_raw.h
 ```
 
 ---

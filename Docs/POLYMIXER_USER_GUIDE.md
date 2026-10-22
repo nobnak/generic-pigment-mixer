@@ -11,10 +11,10 @@
 ## 2. HLSL シェーダーでの使い方
 
 ### 基本インクルード
-シェーダーファイル（`.shader`, `.hlsl`, `.compute`）内で [PolyMixer.hlsl](file:///c:/Users/nakata/Repo/generic-pigment-mixer/Assets/Shaders/PolyMixer.hlsl) をインクルードします。
+シェーダーファイル（`.shader`, `.hlsl`, `.compute`）内で [PolyMixer.hlsl](file:///c:/Users/nakata/Repo/generic-pigment-mixer/Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/PolyMixer.hlsl) をインクルードします。
 
 ```hlsl
-#include "Assets/Shaders/PolyMixer.hlsl"
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/PolyMixer.hlsl"
 ```
 （または相対パス `#include "PolyMixer.hlsl"`）
 
@@ -46,7 +46,7 @@ fixed4 frag(v2f i) : SV_Target {
 
 ### Shader Graph (Custom Function ノード) での利用
 1. Shader Graph 内で **Custom Function** ノードを作成。
-2. **Type**: `File` を選択し、`Assets/Shaders/PolyMixer.hlsl` を指定。
+2. **Type**: `File` を選択し、`Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/PolyMixer.hlsl` を指定。
 3. **Name**: `PolyMixer_Lerp`
 4. **Inputs**:
    - `c1` (Vector3)
@@ -104,7 +104,7 @@ Color green = PolyMixer.Lerp(blue, yellow, 0.5f);
 
 ## 6. SpectralMixer との使い分け（代替エンジン）
 
-本リポジトリには、物理ベース混色の代替実装として [Spectral.js](https://github.com/rvanwijnen/spectral.js) を移植した [SpectralMixer.cs](file:///c:/Users/nakata/Repo/generic-pigment-mixer/Assets/Scripts/SpectralMixer.cs) および [SpectralMixer.hlsl](file:///c:/Users/nakata/Repo/generic-pigment-mixer/Assets/Shaders/SpectralMixer.hlsl) も同梱されています。
+本リポジトリには、物理ベース混色の代替実装として [Spectral.js](https://github.com/rvanwijnen/spectral.js) を移植した [SpectralMixer.cs](file:///c:/Users/nakata/Repo/generic-pigment-mixer/Packages/jp.nobnak.generic_pigment_mixer/Runtime/SpectralMixer.cs) および [SpectralMixer.hlsl](file:///c:/Users/nakata/Repo/generic-pigment-mixer/Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/SpectralMixer.hlsl) も同梱されています。
 
 | 用途・要件 | 推奨エンジン | 理由 |
 | :--- | :--- | :--- |
