@@ -21,6 +21,7 @@ It eliminates the "muddy gray blending" defect inherent in digital additive mixi
 
 - ⚡ **PolyMixer (Fastest / Polynomial Approximation)**: 4th-degree polynomial regression engine (~330 FMAs). Straight-line ALU execution with zero branches. Ideal for 2-color gradient effects and high-framerate 3D rendering.
 - 🎨 **SpectralMixer 16 (High Precision / 16-Band SIMD Physical Model)**: 16-band reduced-order Kubelka-Munk model (~480 ALUs via `float4x4` SIMD). Full Linear RGB (HDR native) support, simultaneous $N \ge 3$ color blending, and pixel downsampling.
+- 🧪 **Physical Accumulation (Accumulator API)**: Directly accumulates arbitrary pixels/colors in the latent spectral ($K/S$) space without order dependence. Resolves the heavy inverse KM solve only once at the end.
 - 📉 **Physical Pixel Downsampling**: Blends high-frequency checkerboards and texture patterns via subtractive color physics, avoiding washed-out optical graying in Mipmaps.
 - 🛠️ **Seamless Integration**: Ready to use in HLSL shaders, C# scripts, and Shader Graph (Custom Function Node).
 
@@ -111,6 +112,23 @@ float3 mixedColor = PolyMixer_Lerp(colA.rgb, colB.rgb, t);
 
 // Physically blends 4 pixels into 1 without muddy optical averaging
 float3 downsampled = Spectral16_Downsample2x2(c00, c10, c01, c11);
+```
+
+#### D. Arbitrary Block Aggregation (Accumulator API)
+```hlsl
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/SpectralMixer16.hlsl"
+
+// 1. Initialize accumulator
+Spectral16_Accum acc = Spectral16_Accum_New();
+
+// 2. Accumulate arbitrary colors/pixels (weight: filter weight, tint: tinting strength)
+// Additive in latent K/S concentration space, completely order-independent
+Spectral16_Accum_Add(acc, pixelA_Linear, weightA);
+Spectral16_Accum_Add(acc, pixelB_Linear, weightB);
+Spectral16_Accum_Add(acc, pixelC_Linear, weightC);
+
+// 3. Resolve once at the end (heavy KM inverse & XYZ integration evaluated only once)
+float3 finalLinear = Spectral16_Accum_Resolve(acc);
 ```
 
 ### 2. In C# Scripts

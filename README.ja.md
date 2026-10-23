@@ -21,6 +21,7 @@ Unity 向けのリアルタイム物理混色（減法混色・顔料ブレン�
 
 - ⚡ **PolyMixer (最速・多項式近似)**: 4 次多項式回帰モデル。約 330 FMA のみで Mixbox 近似の混色を実現。2 色グラデーション演出やゲームのリアルタイム 3D 描画に最適。
 - 🎨 **SpectralMixer 16 (高精度・16 バンド SIMD 物理モデル)**: 16 波長 Kubelka-Munk 散乱吸収モデル（約 480 ALU）。完全 Linear RGB（HDR ネイティブ）対応、3 色以上の同時調合、テクスチャ縮約に最適。
+- 🧪 **物理アキュムレーション (Accumulator API)**: 潜在スペクトル空間（吸光散乱比 $K/S$）で多数の色や画素を順序依存性なく直接加算蓄積。重い逆算を最後に 1 度だけ解く効率的なパイプライン。
 - 📉 **物理画素ダウンサンプリング**: チェッカーボードや高周波テクスチャを物理混色で平均化し、濁りのない自然な Mipmap / 縮小画像を生成。
 - 🛠️ **マルチプラットフォーム対応**: HLSL シェーダー include、C# スクリプト、Shader Graph（Custom Function Node）のすべてで共通して利用可能。
 
@@ -111,6 +112,23 @@ float3 mixedColor = PolyMixer_Lerp(colA.rgb, colB.rgb, t);
 
 // 4つの Linear RGB ピクセルを物理的に縮約（灰色に濁らない Mipmap 等）
 float3 downsampled = Spectral16_Downsample2x2(c00, c10, c01, c11);
+```
+
+#### D. 多数色・画素ブロックの物理アキュムレーション（Accumulator API）
+```hlsl
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/SpectralMixer16.hlsl"
+
+// 1. アキュムレータ初期化
+Spectral16_Accum acc = Spectral16_Accum_New();
+
+// 2. 多数の色/画素を加算蓄積（Linear RGB, weight, tinting strength）
+// 潜在スペクトル空間（K/S比）で線形加算されるため、加算順序に依存しません
+Spectral16_Accum_Add(acc, pixelA_Linear, weightA);
+Spectral16_Accum_Add(acc, pixelB_Linear, weightB);
+Spectral16_Accum_Add(acc, pixelC_Linear, weightC);
+
+// 3. 最後に 1 回だけ RGB に復元（重い KM 逆算・XYZ 積分は 1 度のみ実行）
+float3 finalLinear = Spectral16_Accum_Resolve(acc);
 ```
 
 ### 2. C# スクリプトでの利用

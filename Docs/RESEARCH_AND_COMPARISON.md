@@ -114,6 +114,79 @@ Unity から出力された画像: `Assets/Artifacts/ColorMixing_Comparison.png`
 ### 5.4 実務における選定指針
 1. **リアルタイム 3D / ポストプロセス / ゲーム用途**:
    - **PolyMixer を強く推奨**。テクスチャ不要・0ループ・330 FMA の高速性により、パイプラインのボトルネックにならない。
-2. **デジタルペイント / パレット調合シミュレータ**:
-   - **Spectral.js が有利**。複数顔料の任意比率ブレンドや着色力（隠蔽力）の調整が数学的に自然に行える。
+2. **デジタルペイント / パレット調合シミュレータ / テクスチャ物理縮小**:
+   - **SpectralMixer が有利**。複数顔料の任意比率ブレンドや着色力（隠蔽力）の調整が数学的に自然に行える。
+
+---
+
+## 6. 物理アキュムレータ（Accumulator API）による多数色・画素集約
+
+### 6.1 背景と課題：光学的平均の濁りとペアワイズ混色の限界
+
+テクスチャの Mipmap 生成や画素ダウンサンプリング（例: 64×64 チェッカーボード $\to$ 1×1）において、標準の Box 平均（RGB 線形補間）を行うと、光の加色拡散モデルに基づいているため、青と黄の微小ドットが「くすんだ黄土色〜中間灰色（$\Delta E \approx 37 \sim 46$）」に退色してしまいます。
+
+また、PolyMixer などの多項式近似モデルで 3 色以上（$N \ge 3$）を混ぜる場合、`Lerp(Lerp(c1, c2, 0.5), c3, 0.333)` のようなトーナメント方式のカスケード混色が必要となり、**混合順序によって結果が変化する（順序依存性）** という数学的制約があります。
+
+### 6.2 Kubelka-Munk 潜在空間における線形加法性
+
+単一定数 Kubelka-Munk 散乱吸収モデルでは、各波長 $\lambda$ における反射率 $R(\lambda)$ を吸光散乱比 $F(R) = (1 - R)^2 / (2R) = K/S$ に写像することで、**顔料濃度空間での完全な線形加法性** が成立します。
+
+1. **実効濃度の算出**:
+   各色 $i$ の重み（面積比率）$w_i$、着色力 $T_i$、輝度 $L_i$ から実効濃度を算出：
+   $$C_i = (w_i)^2 \cdot (T_i)^2 \cdot L_i$$
+2. **潜在空間での加算蓄積**:
+   各波長バンドごとに $(K/S)_i$ を線形加算：
+   $$(K/S)_{mix} = \frac{\sum_{i=1}^N C_i (K/S)_i}{\sum_{i=1}^N C_i}$$
+3. **終端での一括逆算**:
+   すべての色・画素を足し終えた後に 1 度だけ反射率 $R_{mix}$ を逆算：
+   $$R_{mix} = 1 + (K/S)_{mix} - \sqrt{(K/S)_{mix}^2 + 2(K/S)_{mix}}$$
+   CIE 1931 等色関数（CMF）との内積から XYZ を経て最終 Linear RGB を導出。
+
+このパイプラインにより、**加算順序に一切依存せず、重い平方根・逆散乱計算をピクセルごとに解くことなく 1 回で完了** させることが可能になります。
+
+### 6.3 HLSL での実装アーキテクチャ ([SpectralMixer16.hlsl](file:///c:/Users/nakata/Repo/generic-pigment-mixer/Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/SpectralMixer16.hlsl#L17-L23))
+
+16 バンドに縮約された KM モデルを、GPU レジスタを圧迫しない `float4x4` SIMD 構造体として定義しています。
+
+```hlsl
+struct Spectral16_Accum {
+    float4 ks0;        // 380 - 460 nm
+    float4 ks1;        // 470 - 550 nm
+    float4 ks2;        // 560 - 630 nm
+    float4 ks3;        // 640 - 750 nm
+    float  totalWeight; // 総実効濃度 sum(C_i)
+};
+```
+
+#### コンピュートシェーダーでの任意ブロック集約例
+```hlsl
+#include "Packages/jp.nobnak.generic_pigment_mixer/ShaderLibrary/SpectralMixer16.hlsl"
+
+[numthreads(8, 8, 1)]
+void CSDownsampleBlock(uint3 id : SV_DispatchThreadID) {
+    Spectral16_Accum acc = Spectral16_Accum_New();
+
+    // 任意個数のピクセル（例: 4x4 ブロック）を潜在空間に集約
+    for (int dy = 0; dy < 4; dy++) {
+        for (int dx = 0; dx < 4; dx++) {
+            float3 srcLinear = SampleSrc(id.xy * 4 + int2(dx, dy));
+            Spectral16_Accum_Add(acc, srcLinear, 1.0 /* weight */, 1.0 /* tint */);
+        }
+    }
+
+    // 最後に 1 度だけ Linear RGB へ解決
+    float3 resolvedLinear = Spectral16_Accum_Resolve(acc);
+    WriteDest(id.xy, float4(resolvedLinear, 1.0));
+}
+```
+
+#### C# スクリプトでの使用例 ([SpectralMixer16.cs](file:///c:/Users/nakata/Repo/generic-pigment-mixer/Packages/jp.nobnak.generic_pigment_mixer/Runtime/SpectralMixer16.cs#L35-L39))
+```csharp
+// 任意個数の色配列と比率配列を指定して物理混合
+Color[] pigments = new Color[] { prussianBlue, cadmiumYellow, titaniumWhite };
+float[] ratios   = new float[] { 0.4f, 0.5f, 0.1f };
+
+Color mixed = SpectralMixer16.Mix(pigments, ratios);
+```
+
 
