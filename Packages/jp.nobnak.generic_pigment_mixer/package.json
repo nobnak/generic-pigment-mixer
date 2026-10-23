@@ -1,6 +1,6 @@
 {
   "name": "jp.nobnak.generic_pigment_mixer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "Generic Pigment Mixer",
   "description": "Real-time physical pigment mixing (PolyMixer & 16-band SIMD Kubelka-Munk SpectralMixer) for Unity.",
   "unity": "6000.0",
